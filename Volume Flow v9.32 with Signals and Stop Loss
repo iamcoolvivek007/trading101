@@ -1,0 +1,74 @@
+//@version=4
+//trading101
+// by v
+study("Volume Flow v9.32 with Signals and Stop Loss", shorttitle="Volume Flow [trading101]")
+
+maType = input(title="Moving Average Type", options=["Simple", "Exponential", "Double Exponential"], defval="Simple")
+length = input(14, title="MA Length")
+x = input(3.1, title="Factor For Breakout Candle")
+atrMultiplier = input(3.0, title="ATR Multiplier for Stop Loss", step=0.1)
+
+//////////////////////////
+// v favorite colors //
+//////////////////////////
+red = #FF510D        //#ff848a // #FA8072 // #323433 // #ff848a
+green = #5AA650      // #8cffe5 // #6DC066 // #80aebd // #8cffe5
+
+// Basic Volume Calcs //
+vol = volume
+bull = close>open?vol:0 
+bear = open>close?vol:0
+
+// Double EMA Function //
+dema(src, len) => (2 * ema(src, len) - ema(ema(src, len), len))
+
+// BEAR Moving Average Calculation
+bullma = maType == "Exponential" ? ema(bull, length) :
+         maType == "Double Exponential" ? dema(bull, length) :
+         sma(bull, length)
+
+// BEAR Moving Average Calculation //
+bearma = maType == "Exponential" ? ema(bear, length) :
+         maType == "Double Exponential" ? dema(bear, length) :
+         sma(bear, length)
+
+// ma dif //
+vf_dif = bullma-bearma
+vf_absolute = vf_dif > 0 ? vf_dif : vf_dif * (-1)
+
+// Volume Spikes //
+gsig=crossover(bull, bullma*x)?vol:na
+rsig=crossover(bear, bearma*x)?vol:na
+
+// Color Calcs //
+vdClr = vf_dif > 0 ? green : red
+vClr=close>open?green:red
+
+// Plots //
+plot(vol, color=vClr, style=plot.style_columns, transp=80, title="Volume")
+plot(bullma*2, color=green, linewidth=1, transp=0, title="Bull MA")
+plot(bearma*2, color=red, linewidth=1, transp=0, title="Bear MA")
+
+plot(gsig, style=plot.style_columns, transp=50, color=green, title="Bull Vol Spike")
+plot(rsig, style=plot.style_columns, transp=50, color=red, title="Bear Vol Spike")
+
+plot(vf_absolute/2.5, style=plot.style_area, color=vdClr, title="Difference Value")
+
+// Buy/Sell Signals
+plotshape(crossover(bullma, bearma), style=shape.triangleup, color=green, size=size.small, title="Buy Signal")
+plotshape(crossunder(bullma, bearma), style=shape.triangledown, color=red, size=size.small, title="Sell Signal")
+
+// Trailing Stop Loss
+atrValue = atr(14)
+
+var isLong = false
+isLong := crossover(bullma, bearma) ? true : crossunder(bullma, bearma) ? false : isLong
+
+var float longStop = na
+var float shortStop = na
+
+longStop := vf_dif > 0 and isLong ? max(longStop, lowest(low, length) - atrValue * atrMultiplier) : na
+shortStop := vf_dif < 0 and not isLong ? min(shortStop, highest(high, length) + atrValue * atrMultiplier) : na
+
+plot(longStop, color=green, style=plot.style_linebr, linewidth=1, title="Long Stop Loss")
+plot(shortStop, color=red, style=plot.style_linebr, linewidth=1, title="Short Stop Loss")
